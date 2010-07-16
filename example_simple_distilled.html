@@ -1,0 +1,46 @@
+<html>
+<head></head>
+<body>
+<pre>
+<font color="green"><b># &gt;&gt;&gt; import and initialization &gt;&gt;&gt; 
+</b></font>
+<font color="blue"><b>import</b></font> egi<font color="darkblue"><b>.</b></font>simple <font color="blue"><b>as</b></font> egi
+<font color="silver"><b>## import egi.threaded as egi
+</b></font>
+<font color="green"><b># ms_localtime = egi.egi_internal.ms_localtime     
+</b></font>ms_localtime <font color="darkblue"><b>=</b></font> egi<font color="darkblue"><b>.</b></font>ms_localtime
+
+
+ns <font color="darkblue"><b>=</b></font> egi<font color="darkblue"><b>.</b></font>Netstation<font color="darkblue"><b>(</b></font><font color="darkblue"><b>)</b></font>
+ns<font color="darkblue"><b>.</b></font>connect<font color="darkblue"><b>(</b></font><font color="brown"><b>'11.0.0.42'</b></font><font color="darkblue"><b>,</b></font> <font color="blue"><b>55513</b></font><font color="darkblue"><b>)</b></font> <font color="green"><b># sample address and port -- change according to your network settings</b></font>
+<font color="silver"><b>## ns.initialize('11.0.0.42', 55513)
+</b></font>ns<font color="darkblue"><b>.</b></font>BeginSession<font color="darkblue"><b>(</b></font><font color="darkblue"><b>)</b></font>
+
+ns<font color="darkblue"><b>.</b></font>sync<font color="darkblue"><b>(</b></font><font color="darkblue"><b>)</b></font>
+
+ns<font color="darkblue"><b>.</b></font>StartRecording<font color="darkblue"><b>(</b></font><font color="darkblue"><b>)</b></font>
+
+
+
+<font color="green"><b># &gt;&gt;&gt; send many events here &gt;&gt;&gt; 
+</b></font>
+<font color="silver"><b>## # optionally can perform additional synchronization     
+</b></font><font color="silver"><b>## ns.sync()     
+</b></font>ns<font color="darkblue"><b>.</b></font>send_event<font color="darkblue"><b>(</b></font> <font color="brown"><b>'evt_'</b></font><font color="darkblue"><b>,</b></font> label<font color="darkblue"><b>=</b></font><font color="brown"><b>"event"</b></font><font color="darkblue"><b>,</b></font> timestamp<font color="darkblue"><b>=</b></font>egi<font color="darkblue"><b>.</b></font>ms_localtime<font color="darkblue"><b>(</b></font><font color="darkblue"><b>)</b></font><font color="darkblue"><b>,</b></font> table <font color="darkblue"><b>=</b></font> <font color="darkblue"><b>{</b></font><font color="brown"><b>'fld1'</b></font> <font color="darkblue"><b>:</b></font> <font color="blue"><b>123</b></font><font color="darkblue"><b>,</b></font> <font color="brown"><b>'fld2'</b></font> <font color="darkblue"><b>:</b></font> <font color="brown"><b>"abc"</b></font><font color="darkblue"><b>,</b></font> <font color="brown"><b>'fld3'</b></font> <font color="darkblue"><b>:</b></font> <font color="blue"><b>0.042</b></font><font color="darkblue"><b>}</b></font> <font color="darkblue"><b>)</b></font>
+
+
+
+<font color="green"><b># &gt;&gt;&gt; we have sent all we wanted, time to go home &gt;&gt;&gt; 
+</b></font>
+ns<font color="darkblue"><b>.</b></font>StopRecording<font color="darkblue"><b>(</b></font><font color="darkblue"><b>)</b></font>
+
+ns<font color="darkblue"><b>.</b></font>EndSession<font color="darkblue"><b>(</b></font><font color="darkblue"><b>)</b></font>
+ns<font color="darkblue"><b>.</b></font>disconnect<font color="darkblue"><b>(</b></font><font color="darkblue"><b>)</b></font>
+
+<font color="silver"><b>## ns.EndSession()     
+</b></font><font color="silver"><b>## ns.finalize()     
+</b></font>
+<font color="green"><b># &gt;&gt;&gt; that's it !</b></font>
+</pre>
+</body>
+</html>
