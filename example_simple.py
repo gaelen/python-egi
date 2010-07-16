@@ -74,7 +74,7 @@ time.sleep(0.1)  # force the events to arrive in the "correct" order
 # description on the next line     
 
 ns.send_event('evt5', timestamp=egi.ms_localtime()) 
-ns.send_event('evt6', description='back in time', timestamp=e.ms_localtime() - 50)
+ns.send_event('evt6', description='back in time', timestamp=egi.ms_localtime() - 50)
 
 time.sleep(0.1)  # force the events to arrive in the "correct" order
 

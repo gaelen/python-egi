@@ -102,7 +102,7 @@ time.sleep(0.1)  # force the events to arrive in the "correct" order
 # or may be even some other moment back in time :     
 
 ns.send_event('evt5', timestamp=egi.ms_localtime()) 
-ns.send_event('evt6', description='back in time', timestamp=e.ms_localtime() - 50)
+ns.send_event('evt6', description='back in time', timestamp=egi.ms_localtime() - 50)
 
 # 1. At the moment we have to use the egi.ms_localtime() function, not some other
 #    like time.time(), for two reasons :
