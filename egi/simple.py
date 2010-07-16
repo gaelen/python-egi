@@ -98,10 +98,13 @@ def ms_localtime() :
     # debug ( check the byte order )
     # return 1     
     
-    seconds_in_a_day = 60 * 60 * 24     
-    day_time_ms = int(   math.floor(  ( time.time() % seconds_in_a_day ) * 1000  )   )     
+    ## seconds_in_a_day = 60 * 60 * 24 # 86400     
+    ## day_time_ms = int(   math.floor(  ( time.time() % seconds_in_a_day ) * 1000  )   )     
+    ## 2^32 = 4294967296
+    modulo = 1000000     
+    ms_remainder = int(   math.floor(  ( time.time() % modulo ) * 1000  )   )     
 
-    return day_time_ms # finish the recording before midnight ( and start after 00:00 )     
+    return ms_remainder # finish the recording before midnight ( and start after 00:00 )     
 
 
 # -----------------------------------------------------------------------------
