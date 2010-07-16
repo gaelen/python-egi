@@ -82,9 +82,13 @@ class Eggog( exceptions.Exception ) :
 # accessory functions     
 #
 
-def ms_localtime() :
-    """ gives the local time in milliseconds ( modulo 'one day' ) """
+global _ts_last 
+_ts_last = 0     
+def ms_localtime(warnme = True) :
+    """ gives the local time in milliseconds ( modulo 1.000.000.000 ) """
 
+    global _ts_last
+  
     # we just need some standard way to represent local time with ms precision
     # ( and by a 32-bit integer, but this can wait until 2036 )
 
@@ -102,8 +106,15 @@ def ms_localtime() :
     ## day_time_ms = int(   math.floor(  ( time.time() % seconds_in_a_day ) * 1000  )   )     
     ## 2^32 = 4294967296
     modulo = 1000000     
+    # modulo = 10 # tests     
     ms_remainder = int(   math.floor(  ( time.time() % modulo ) * 1000  )   )     
 
+    if warnme and ( ms_remainder < _ts_last ) :     
+
+        raise Eggog( "internal 32-bit counter passed through zero, please resynchronize ( call .synch() once again )" )     
+
+    _ts_last = ms_remainder
+  
     return ms_remainder # finish the recording before midnight ( and start after 00:00 )     
 
 
