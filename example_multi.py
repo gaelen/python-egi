@@ -50,7 +50,7 @@ time.sleep(5) # pretend we do sth very useful here ...
 # Netstation [ the version we use ] seems to dislike short session files
 # and silently removes it on exit .
 # as in actual recording files are seldom shorter that at least a few seconds,
-# this does not seem to bi a big problem .     
+# this does not seem to be a big problem .     
 
 
 
