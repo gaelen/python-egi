@@ -52,6 +52,7 @@ class Eggog( exceptions.Exception ) :
 
         if type( string_key ) != type( '' ) :     
 
+            # raise self.__class__(  "'%s': EGI wants the key to be four _characters_ (not %s) !" % (type(string_key), )  )     
             raise Eggog(  "'%s': EGI wants the key to be four _characters_ (not %s) !" % (type(string_key), )  )     
         
         else :
@@ -73,6 +74,25 @@ class Eggog( exceptions.Exception ) :
         else :
             
             return True     
+        
+    @staticmethod     
+    def try_as_int( i ) :
+        """     
+            check if the value is an integer value or compatible (say, 1.0) and transform it to an integer -- may be a long one ;     
+            if this is not so -- raise an exception 
+        """     
+
+        try :     
+
+            ret = int( i )
+            if ret != i : 
+                raise exceptions.Exception("conversion failed")
+
+        except :
+            raise Eggog(  "'%s': failed to convert to a (Python) integer!" % (repr(i), )  )     
+
+        return ret
+
         
     
 # -----------------------------------------------------------------------------
@@ -120,6 +140,47 @@ def ms_localtime(warnme = True) :
 
 # -----------------------------------------------------------------------------
 
+#
+# as Netstation integer values are all signed 
+# ( according to "Experimental Control Protocol" appendix  --     
+#   -- both 'Data type definitions' and 'Event Key Descriptions' 
+#   in my version(s) of the manual describe only signed integers )
+# -- we have to check Python integers if they fit signed integer limits     
+# 
+
+## NB: experiments show that for bit operations  (on x86_64) python long negative integers are treated as if they were prepended with infinite number of  "ones"
+## (  what makes sense for any finite extension and usual "2-compliment" thing )     
+
+def truncate_pyint_to_i32_interval( i ) :     
+    """ truncate the value to fit ( - 0x80000000 <= value <= 0x7FFFFFFF ) """     
+
+    # try to convert input to int or long int     
+    i_= Eggog.try_as_int( i )
+    
+    # assume 2's complement     
+    negative = ( i_ < 0 )
+    if negative :  
+        ii = -( i_ + 1 ) # ~ i_
+        i_ = ii
+        
+    # ----------------------------------------------
+    
+    # signed_max = 0x7FFFFFFF
+    # signed_min = - signed_max - 1     
+    
+    # u32max = 2 ** 32
+    s32mod = 0x80000000
+    i_ = i_ % s32mod     
+    
+    # ----------------------------------------------
+        
+    if negative : 
+        ## i_ = -ii - 1
+        i_ = -i_ - 1 # ~ i_ # again     
+    
+    return i_     
+    
+'''
 # a predicate for external timestamps     
 def is_32_bit_int_compatible( i ) :
     """ check if we can transmit the given number as a 32-bit integer """
@@ -156,7 +217,34 @@ def is_32_bit_int_compatible( i ) :
     allf = 0xFFFFFFFF
 
     return ( i_ <= allf )     
+'''    
+
+def is_32_bit_int_compatible( i ) :
+    """ check if we can transmit the given number as a signed 32-bit integer """
+
+    #
+    # can we convert the input to an integer value ?     
+    #
+
+    try :     
+
+        ## debug:
+        ## print "compat: ", i, truncate_pyint_to_i32_interval(i)
+
+        if i ==  truncate_pyint_to_i32_interval( i ) :     
+            ## # debug     
+            ## print "compat: TRUE", i, truncate_pyint_to_i32_interval(i)
+            return True
+
+    except :
+
+        ## # debug :     
+        ## print "compat: FALSE", i, truncate_pyint_to_i32_interval(i)
+        pass
     
+    # else ...     
+    return False     
+
 
 # -----------------------------------------------------------------------------
 
@@ -259,7 +347,7 @@ class _Format :
         fmt = '=c' + self[key].lstrip('=')     
 
         # or more strict ( though not tested ) :     
-	'''
+        '''
         fmt_ = self[key].lstrip('=')     
         prefix = '='  
         PREFIXES = '@=<>!'        
@@ -271,13 +359,13 @@ class _Format :
         '''     
 
 
-	# # debug     
-	# print "format string: '%s', args: " % (fmt, ), args     
+        ## # debug     
+        ## print "format string: '%s', args: " % (fmt, ), args     
 
         result = struct.pack(fmt, key, *args)     
 
-	# # debug     
-        # print result
+        ## # debug     
+        ## print result
 
         return result
         
@@ -363,6 +451,11 @@ def cstring( s ) :
 
 '''     
 
+## class _DataFormatCheckers:
+##  """ a namespace """
+##
+## << start Unicode-related stuff from here >>     
+##
 
 class _DataFormat :
     """ a helper for creating the "Extended" events (many key fields, variable data) """
@@ -374,7 +467,10 @@ class _DataFormat :
         self._translation_table = \
         { type(True) : ( 'bool', '=?' ) , # Python standard ("struct"): one byte     
           # there are no "short" integers by default in Python     
+          # also integers are 64-bit on 64-bit Unix, so we have to  check their size, 
+          # see the 'check_table' below     
           type(1) : ( 'long', '=l' ) ,  # '=' -- translation is: four bytes
+          type(1L) : ( 'long', '=l' ) ,  # '=' -- translation is: four bytes
           # type(1.0) : ( 'doub', '=d' ) ,  # " 64 bit I3E floating-point number "     
           ## temp test     
           ## type(1.0) : ( 'sing', '=f' ) ,  # " 64 bit I3E floating-point number "     
@@ -387,16 +483,39 @@ class _DataFormat :
           ## type( None ) : ( '\x00' * 4, '=H' ) # one more special case for a bugfix ,
           ##                                     # see pack() method comments below     
         }     
+
+        # some data types must undergo additional compatibility checks ...     
+        self._check_table = \
+        { # type(1L) :  lambda x : int(x) , # if this fails then the next attempt would have probably been do
+            type(1) : is_32_bit_int_compatible, 
+            type(1L) : is_32_bit_int_compatible, 
+        }
+
+    def _get_hints( self, data ) :     
+        """ try to preprocess the data before getting the packing hints """     
+
+        hints = None     
+        is_ok = self._check_table.get( type(data), lambda x: True )
+        if is_ok( data ):
+            hints = self._translation_table.get( type(data), None )
         
+        # if the hints are None, we may want to try again with str(data) or repr(data) -- but we do not want any hidden transformations at this level     
+        return hints
+
     
     def _pack_data( self, data ) :
         """ try to pack the argument according to its type; by default, a str() conversion is sent """     
         
-        hints = self._translation_table.get( type(data), None )
+        # hints = self._translation_table.get( type(data), None )
+        hints = self._get_hints( data )     
         
-        if hints is None :
-
+        if hints is None :     
+            
+            ## #debug: 
+            ## print "_pack_data(): no hints for data type %s (data repr: %s)" % (type(data), repr(data))
+            
             # "one-level recursion" :     
+            # return self._pack_data( repr(data) )
             return self._pack_data( str(data) )
         
         ## # our special case ( grep 'bugfix' to see why we want a zero block )     
@@ -429,6 +548,9 @@ class _DataFormat :
         """
 
         keys, values = zip( *table.items() )
+        
+        ## #debug 
+        ## print "_pack_dict(): keys; values",  keys,  values
 
         # we hope not to be called with an empty dict(), but ...     
         if len( keys ) <= 0 :
@@ -468,6 +590,7 @@ class _DataFormat :
         if nkeys > 255 :
             raise Eggog( "too many keys to send (%d > 255)" % (nkeys, ) )     
         
+
         nkeys_str = struct.pack( '=B', nkeys )     
 
         values_packed = map( self._pack_data, values )
@@ -477,6 +600,11 @@ class _DataFormat :
         items_packed[2::2] = values_packed
 
         result = _cat( *items_packed )     
+
+        ## #debug 
+        ## print "_pack_dict(): nkeys, keys; values_packed",  nkeys,  keys, repr(values_packed)
+
+        ## print "_pack_dict(): result:",  repr(result )     
 
         return result     
         
@@ -539,7 +667,7 @@ class _DataFormat :
             timestamp = ms_localtime()     
 
         #
-        # bufix : as it seems that NetStation
+        # bugfix : as it seems that NetStation
         #
         #        (a) does not clean the internal buffer for the "event" data
         #          and
@@ -572,13 +700,13 @@ class _DataFormat :
 
         size = len( label_str ) + len( description_str ) + len( table_str )     
         
-        # # debug     
-        # print "+size: ", size     
+        ## # debug     
+        ## print "+size: ", size     
 
         header_str = self._make_event_header( size, timestamp, duration, key )     
 
-        # # debug     
-        # print "'%s', '%s', '%s', '%s'" % ( header_str, label_str, description_str, table_str )     
+        ## # debug     
+        ## print "'%s', '%s', '%s', '%s'" % ( header_str, label_str, description_str, table_str )     
 
         result_str = _cat( header_str, label_str, description_str, table_str )     
         
@@ -726,8 +854,8 @@ class Netstation :
 
         message = self._fmt.pack( 'T', ms_time )     
 
-	# # debug     
-	# print message, struct.unpack('=L', message[1:])     
+        ## # debug     
+        ## print message, struct.unpack('=L', message[1:])     
 
         self._socket.write( message )     
 
@@ -781,7 +909,7 @@ class Netstation :
         '''
         
         #
-        # bufix : as it seems that NetStation
+        # bugfix : as it seems that NetStation
         #
         #        (a) does not clean the internal buffer for the "event" data
         #          and
