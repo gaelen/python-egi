@@ -52,7 +52,7 @@ class Eggog( exceptions.Exception ) :
 
         if type( string_key ) != type( '' ) :     
 
-            raise self.__class__(  "'%s': EGI wants the key to be four _characters_ (not %s) !" % (type(string_key), )  )     
+            raise Eggog(  "'%s': EGI wants the key to be four _characters_ (not %s) !" % (type(string_key), )  )     
         
         else :
             
@@ -68,7 +68,7 @@ class Eggog( exceptions.Exception ) :
 
         if len( string_key ) != 4 :
 
-            raise self.__class__(  "'%s': EGI wants the key to be exactly four characters!" % (string_key, )  )     
+            raise Eggog(  "'%s': EGI wants the key to be exactly four characters!" % (string_key, )  )     
         
         else :
             
