@@ -397,7 +397,7 @@ class _DataFormat :
         if hints is None :
 
             # "one-level recursion" :     
-            return self.pack( str(data) )
+            return self._pack_data( str(data) )
         
         ## # our special case ( grep 'bugfix' to see why we want a zero block )     
         ## if data is None: data = 0
