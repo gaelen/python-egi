@@ -673,7 +673,7 @@ class Netstation:
         self._socket.write(message)
 
         # debug
-        print "BS: ", message
+        print("BS: ", message)
 
         return self.GetServerResponse()
 
@@ -861,19 +861,3 @@ class Netstation:
         self._socket.write(data_string)
 
         return self.GetServerResponse()
-
-
-
-
-
-# -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-
-if __name__ == "__main__":
-
-    print __doc__
-    print "\n === \n"
-    # print "module dir() listing: ", __dict__.keys()
-    print "module dir() listing: ", dir()
-
-
