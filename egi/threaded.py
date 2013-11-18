@@ -17,7 +17,7 @@ from socket_wrapper import Socket
 # "forward" these names to be used from outside
 #
 
-Error = internal.Eggog
+Error = internal.EgiError
 ms_localtime = internal.ms_localtime
 
 #

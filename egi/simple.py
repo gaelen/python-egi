@@ -6,7 +6,6 @@ import struct
 import math
 import time
 import sys
-import exceptions
 
 
 # This module provides a simple Python wrapper
@@ -20,7 +19,7 @@ import exceptions
 # (though the last one seems to be a little bit more incomplete than the other ones)
 
 
-class Eggog(exceptions.Exception):
+class EgiError(Exception):
     """
     General exception, will make things more specific if necessary ;
     at the moment it means that the server has returned an error --
@@ -34,9 +33,9 @@ class Eggog(exceptions.Exception):
             -- and raise an exception if it isn't)
         """
 
-        if type(string_key) != type(''):
+        if not isinstance(string_key, str):
             # raise self.__class__("'%s': EGI wants the key to be four _characters_ (not %s) !" % (type(string_key),))
-            raise Eggog("'%s': EGI wants the key to be four _characters_ (not %s) !" % (type(string_key),))
+            raise EgiError("'%s': EGI wants the key to be four _characters_ (not %s) !" % (type(string_key),))
         else:
             return True
 
@@ -48,7 +47,7 @@ class Eggog(exceptions.Exception):
         """
 
         if len(string_key) != 4:
-            raise Eggog("'%s': EGI wants the key to be exactly four characters!" % (string_key,))
+            raise EgiError("'%s': EGI wants the key to be exactly four characters!" % (string_key,))
         else:
             return True
 
@@ -62,9 +61,9 @@ class Eggog(exceptions.Exception):
         try:
             ret = int(i)
             if ret != i:
-                raise exceptions.Exception("conversion failed")
+                raise ValueError('%s cannot be converted to int' % i)
         except:
-            raise Eggog("'%s': failed to convert to a (Python) integer!" % (repr(i),))
+            raise EgiError('%s cannot be converted to int' % i)
 
         return ret
 
@@ -100,7 +99,7 @@ def ms_localtime(warnme=True):
 
     if warnme and (ms_remainder < _TS_LAST):
 
-        raise Eggog("internal 32-bit counter passed through zero, please resynchronize (call .synch() once again)")
+        raise EgiError("internal 32-bit counter passed through zero, please resynchronize (call .synch() once again)")
 
     _TS_LAST = ms_remainder
 
@@ -124,7 +123,7 @@ def truncate_pyint_to_i32_interval(i):
     """ truncate the value to fit (- 0x80000000 <= value <= 0x7FFFFFFF) """
 
     # try to convert input to int or long int
-    i_ = Eggog.try_as_int(i)
+    i_ = EgiError.try_as_int(i)
 
     # assume 2's complement
     negative = (i_ < 0)
@@ -328,43 +327,48 @@ def cstring(s):
 ## << start Unicode-related stuff from here >>
 ##
 
-class _DataFormat:
-    """ a helper for creating the "Extended" events (many key fields, variable data) """
+class _DataFormat(object):
+    """
+    A helper for creating the "Extended" events (many key fields,
+    variable data).
+    """
 
     def __init__(self):
-        """ create the main reference table """
-
+        """
+        Create the main reference table.
+        """
         # ref.: p.196 of App.G: "Experimental Control Protocol"
-        self._translation_table = \
-        { type(True): ('bool', '=?') , # Python standard ("struct"): one byte
-          # there are no "short" integers by default in Python
-          # also integers are 64-bit on 64-bit Unix, so we have to  check their size,
-          # see the 'check_table' below
-          type(1): ('long', '=l') ,  # '=' -- translation is: four bytes
-          type(1L): ('long', '=l') ,  # '=' -- translation is: four bytes
-          # type(1.0): ('doub', '=d') ,  # " 64 bit I3E floating-point number "
-          ## temp test
-          ## type(1.0): ('sing', '=f') ,  # " 64 bit I3E floating-point number "
-          # bugfix: due to another bug, Netstation seems to ignore the byte order
-          # for the floating-point values (and assumes 'UNIX' (i.e. network /
-          # / "big-endian") order of bytes)
-          type(1.0): ('doub', '!d') ,  # " 64 bit I3E floating-point number "
-          type(''): ('TEXT', '%ds') , # !! a special case
-          ## ---------------------------------
-          ## type(None): ('\x00' * 4, '=H') # one more special case for a bugfix ,
-          ##                                     # see pack() method comments below
+        self._translation_table = {
+            type(True): ('bool', '=?'),  # Python standard ("struct"): one byte
+            # there are no "short" integers by default in Python
+            # also integers are 64-bit on 64-bit Unix, so we have to  check their size,
+            # see the 'check_table' below
+            type(1): ('long', '=l'),  # '=' -- translation is: four bytes
+            type(1L): ('long', '=l'),  # '=' -- translation is: four bytes
+            # type(1.0): ('doub', '=d'),  # " 64 bit I3E floating-point number "
+            ## temp test
+            ## type(1.0): ('sing', '=f'),  # " 64 bit I3E floating-point number "
+            # bugfix: due to another bug, Netstation seems to ignore the byte order
+            # for the floating-point values (and assumes 'UNIX' (i.e. network /
+            # / "big-endian") order of bytes)
+            type(1.0): ('doub', '!d'),  # " 64 bit I3E floating-point number "
+            type(''): ('TEXT', '%ds'),  # !! a special case
+            ## ---------------------------------
+            ## type(None): ('\x00' * 4, '=H') # one more special case for a bugfix,
+            ##                                     # see pack() method comments below
         }
 
         # some data types must undergo additional compatibility checks ...
-        self._check_table = \
-        { # type(1L):  lambda x: int(x) , # if this fails then the next attempt would have probably been do
+        self._check_table = {
+            # type(1L):  lambda x: int(x), # if this fails then the next attempt would have probably been do
             type(1): is_32_bit_int_compatible,
             type(1L): is_32_bit_int_compatible,
         }
 
     def _get_hints(self, data):
-        """ try to preprocess the data before getting the packing hints """
-
+        """
+        Try to preprocess the data before getting the packing hints.
+        """
         hints = None
         is_ok = self._check_table.get(type(data), lambda x: True)
         if is_ok(data):
@@ -373,18 +377,16 @@ class _DataFormat:
         # if the hints are None, we may want to try again with str(data) or repr(data) -- but we do not want any hidden transformations at this level
         return hints
 
-
     def _pack_data(self, data):
-        """ try to pack the argument according to its type; by default, a str() conversion is sent """
+        """
+        Try to pack the argument according to its type; by default, a
+        str() conversion is sent.
+        """
 
         # hints = self._translation_table.get(type(data), None)
         hints = self._get_hints(data)
 
         if hints is None:
-
-            ## #debug:
-            ## print "_pack_data(): no hints for data type %s (data repr: %s)" % (type(data), repr(data))
-
             # "one-level recursion":
             # return self._pack_data(repr(data))
             return self._pack_data(str(data))
@@ -402,9 +404,7 @@ class _DataFormat:
         else:
             length = struct.calcsize(hints[1])
             data_str = struct.pack(hints[1], data)
-
         length_str = struct.pack('=H', length)
-
 
         return _cat(desctype, length_str, data_str)
 
@@ -412,7 +412,7 @@ class _DataFormat:
     def _pack_dict(self, table, pad = False):
         """
             pack the data from the given dictionary for sending ;
-            if the 'pad' argument is False, the keys must be four-character strings ,
+            if the 'pad' argument is False, the keys must be four-character strings,
             otherwise they will be converted to strings by str() and then truncated
             or padded with spaces .
             Note that for the latter case the uniqueness of the generated key ids is not quaranteed .
@@ -434,8 +434,8 @@ class _DataFormat:
         # 4-byte condition check
         if not pad:
             # "try" ...
-            map(Eggog.check_type, keys)
-            map(Eggog.check_len, keys)
+            map(EgiError.check_type, keys)
+            map(EgiError.check_len, keys)
 
         else: # else convert to string and truncate or pad
 
@@ -459,7 +459,7 @@ class _DataFormat:
         nkeys = len(keys)
 
         if nkeys > 255:
-            raise Eggog("too many keys to send (%d > 255)" % (nkeys,))
+            raise EgiError("too many keys to send (%d > 255)" % (nkeys,))
 
 
         nkeys_str = struct.pack('=B', nkeys)
@@ -543,7 +543,7 @@ class _DataFormat:
         #        (a) does not clean the internal buffer for the "event" data
         #          and
         #        (b) ignores the "total packet length" from the "event" message header
-        #            when reading the "label" / "description" / "key/data" information ,
+        #            when reading the "label" / "description" / "key/data" information,
         #
         #        we have to append a fake "tail" to our message if the case if it is incomplete --
         #        -- otherwise either garbage or the information from the previous datagram
@@ -554,11 +554,10 @@ class _DataFormat:
         #
 
         if not is_32_bit_int_compatible(timestamp):
+            raise EgiError("only 'small' 32-bit integer values less than %d are accepted as timestamps, not %s" % (0xffffFFFF, timestamp))
 
-            raise Eggog("only 'small' 32-bit integer values less than %d are accepted as timestamps, not %s"  %  (0xffffFFFF, timestamp))
-
-        if label is None: label = ''
-        if description is None: description = ''
+        label = label or ''
+        description = description or ''
 
         label_str = pstring(label)
         description_str = pstring(description)
@@ -571,213 +570,160 @@ class _DataFormat:
 
         size = len(label_str) + len(description_str) + len(table_str)
 
-        ## # debug
-        ## print "+size: ", size
-
         header_str = self._make_event_header(size, timestamp, duration, key)
-
-        ## # debug
-        ## print "'%s', '%s', '%s', '%s'" % (header_str, label_str, description_str, table_str)
 
         result_str = _cat(header_str, label_str, description_str, table_str)
 
         return result_str
 
 
-# -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-
-class Netstation:
-    """ Provides Python interface for a connection with the Netstation via a TCP/IP socket. """
-
+class Netstation(object):
+    """
+    Provides Python interface for a connection with the Netstation via
+    a TCP/IP socket.
+    """
     def __init__(self):
-
         self._socket = Socket()
         self._system_spec = _get_endianness_string()
         self._fmt = _Format()
         self._data_fmt = _DataFormat()
 
     def connect(self, str_address, port_no):
-        """ connect to the Netstaton machine """
-
+        """
+        Connect to the Netstaton machine.
+        """
         self._socket.connect(str_address, port_no)
 
-        # return None
-
     def disconnect(self):
-        """ close the connection """
-
+        """
+        Close the connection.
+        """
         self._socket.disconnect()
 
-        # return None
-
-    ## -----------------------------------------------------------
-
-    def GetServerResponse(self, b_raise = True):
-        """ read the response from the socket and convert it to a True / False resulting value """
-
+    def GetServerResponse(self, b_raise=True):
+        """
+        Read the response from the socket and convert it to a True /
+        False resulting value.
+        """
         code = self._socket.read(1)
 
-
         if code == 'Z':
-
             return True
 
-        elif code == 'F': # an 'F' <error code> sequence
-
+        elif code == 'F':
+            # an 'F' <error code> sequence
             error_info_length = self._fmt.format_length(code)
             error_info = self._socket.read(error_info_length)
 
             if b_raise:
-
                 err_msg = "server returned an error: " + repr(self._fmt.unpack(code, error_info))
-                raise Eggog(err_msg)
-
+                raise EgiError(err_msg)
             else:
                 return False
 
-        elif code == 'I': # a version byte should follow
-
+        elif code == 'I':
+            # a version byte should follow
             version_length = self._fmt.format_length(code)
             version_info = self._socket.read(version_length)
             version = self._fmt.unpack(code, version_info)
 
-            ## # debug
-            ## print version
-
             self._egi_protocol_version = version
             self._egi_protocol_version = version[0]
-
-            return self._egi_protocol_version # just a bit more informative than 'None'
-
-        else: # something completely unexpected
-
-            if b_raise:
-
-                raise Eggog("unexpected character code returned from server: '%s'" % (code,))
-
-            else:
-
-                return False
-
-
-    ## -----------------------------------------------------------
-
-    def BeginSession(self):
-        """ say 'hi!' to the server """
-
-        ## self._connection.write('Q%s' % (systemSpec,))
-        ## assert self.GetServerResponse() == True # " the quick-&-dirty way " // to-do: create an own exception
-
-        message = self._fmt.pack('Q', self._system_spec)
-        self._socket.write(message)
-
-        # debug
-        print("BS: ", message)
-
-        return self.GetServerResponse()
-
-
-    def EndSession(self):
-        """ say 'bye' to the server """
-
-        self._socket.write('X')
-        # self._connection.write('X').flush()
-
-        return self.GetServerResponse()
-
-
-    ## -----------------------------------------------------------
-
-    def StartRecording(self):
-        """ start recording to the selected (externally) file """
-
-        self._socket.write('B')
-
-        return self.GetServerResponse()
-
-
-    def StopRecording(self):
-        """ stop recording to the selected file;
-            the recording can be resumed with the BeginRecording() command
-            if the session is not closed yet .
-        """
-
-        self._socket.write('E')
-
-        return self.GetServerResponse()
-
-    ## -----------------------------------------------------------
-
-    def SendAttentionCommand(self):
-        """ Sends and 'Attention' command """ # also pauses the recording ?
-
-        self._socket.write('A')
-
-        return self.GetServerResponse()
-
-
-    def SendLocalTime(self, ms_time = None):
-        """ Send the local time (in ms) to Netstation; usually this happens after an 'Attention' command """
-
-        if ms_time is None:
-            ms_time = ms_localtime()
-
-        message = self._fmt.pack('T', ms_time)
-
-        ## # debug
-        ## print message, struct.unpack('=L', message[1:])
-
-        self._socket.write(message)
-
-        return self.GetServerResponse()
-
-    ## -----------------------------------------------------------
-
-    def sync(self, timestamp = None):
-        """ a shortcut for sending the 'attention' command and the time info """
-
-        if (self.SendAttentionCommand()) and (self.SendLocalTime(timestamp)):
-
-            return True
+            return self._egi_protocol_version  # just a bit more informative than 'None'
 
         else:
+            # something completely unexpected
+            if b_raise:
+                raise EgiError("unexpected character code returned from server: '%s'" % (code,))
+            else:
+                return False
 
-            raise Eggog("sync command failed!")
+    def BeginSession(self):
+        """
+        Say 'hi!' to the server.
+        """
+        message = self._fmt.pack('Q', self._system_spec)
+        self._socket.write(message)
+        return self.GetServerResponse()
 
+    def EndSession(self):
+        """
+        Say 'bye' to the server.
+        """
+        self._socket.write('X')
+        # self._connection.write('X').flush()
+        return self.GetServerResponse()
 
-    ## -----------------------------------------------------------
+    def StartRecording(self):
+        """
+        Start recording to the selected (externally) file.
+        """
+        self._socket.write('B')
+        return self.GetServerResponse()
 
-    # send_event, send_simple_event
+    def StopRecording(self):
+        """
+        Stop recording to the selected file. The recording can be
+        resumed with the BeginRecording() command if the session is
+        not closed yet.
+        """
+        self._socket.write('E')
+        return self.GetServerResponse()
+
+    def SendAttentionCommand(self):
+        """
+        Sends and 'Attention' command.
+        also pauses the recording?
+        """
+        self._socket.write('A')
+        return self.GetServerResponse()
+
+    def SendLocalTime(self, ms_time=None):
+        """
+        Send the local time (in ms) to Netstation; usually this
+        happens after an 'Attention' command.
+        """
+        if ms_time is None:
+            ms_time = ms_localtime()
+        message = self._fmt.pack('T', ms_time)
+        self._socket.write(message)
+        return self.GetServerResponse()
+
+    def sync(self, timestamp=None):
+        """
+        A shortcut for sending the 'attention' command and the time
+        info.
+        """
+        if (self.SendAttentionCommand()) and (self.SendLocalTime(timestamp)):
+            return True
+        else:
+            raise EgiError("sync command failed!")
 
     ## def pack(self, key, timestamp = None, label = None, description = None, table = None, pad = False):
-    def send_event(self, key, timestamp = None, label = None, description = None, table = None, pad = False):
+    def send_event(self, key, timestamp=None, label=None, description=None, table=None, pad=False):
         """
-            Send an event ; note that before sending any events a sync() has to be called
-            to make the sent events effective .
+        Send an event ; note that before sending any events a sync() has to be called
+        to make the sent events effective .
 
-            Arguments:
-            -- 'id' -- a four-character identifier of the event ;
-            -- 'timestamp' -- the local time when event has happened, in milliseconds ;
-                              note that the "clock" used to produce the timestamp should be the same
-                              as for the sync() method, and, ideally,
-                              should be obtained via a call to the same function ;
-                              if 'timestamp' is None, a time.time() wrapper is used .
-            -- 'label' -- a string with any additional information, up to 256 characters .
-            -- 'description' -- more additional information can go here (same limit applies) .
-            -- 'table' -- a standart Python dictionary, where keys are 4-byte identifiers,
-                          not more than 256 in total ;
-                          there are no special conditions on the values,
-                          but the size of every value entry in bytes should not exceed 2 ^ 16 .
+        Arguments:
+        -- 'id' -- a four-character identifier of the event ;
+        -- 'timestamp' -- the local time when event has happened, in milliseconds ;
+                          note that the "clock" used to produce the timestamp should be the same
+                          as for the sync() method, and, ideally,
+                          should be obtained via a call to the same function ;
+                          if 'timestamp' is None, a time.time() wrapper is used .
+        -- 'label' -- a string with any additional information, up to 256 characters .
+        -- 'description' -- more additional information can go here (same limit applies) .
+        -- 'table' -- a standart Python dictionary, where keys are 4-byte identifiers,
+                      not more than 256 in total ;
+                      there are no special conditions on the values,
+                      but the size of every value entry in bytes should not exceed 2 ^ 16 .
 
-            Note A: due to peculiarity of the implementation, our particular version of NetStation
-                    was not able to record more than 2^15 events per session .
+        Note A: due to peculiarity of the implementation, our particular version of NetStation
+                was not able to record more than 2^15 events per session .
 
-            Note B: it is *strongly* recommended to send as less data as possible .
-
+        Note B: it is *strongly* recommended to send as less data as possible .
         """
-
-        '''
 
         #
         # bugfix: as it seems that NetStation
@@ -785,78 +731,49 @@ class Netstation:
         #        (a) does not clean the internal buffer for the "event" data
         #          and
         #        (b) ignores the "total packet length" from the "event" message header
-        #            when reading the "label" / "description" / "key/data" information ,
+        #            when reading the "label" / "description" / "key/data" information,
         #
         #        we have to append a fake "tail" to our message if the case if it is incomplete --
         #        -- otherwise either garbage or the information from the previous datagram
         #        would be erroneously recognized as belonging to ours .
         #
-
-        #
         # the following would make the _DataFormat.pack() method
         # to create (empty) description and label fields as well, if necessary
         #
-
-        if (table is None) or (len(table.keys()) <= 0):
-
-            zero_entry = { '\x00' * 4: 0 }
-
-        '''
+        # if (table is None) or (len(table.keys()) <= 0):
+        #     zero_entry = { '\x00' * 4: 0 }
 
         message = self._data_fmt.pack(key, timestamp, label, description, table, pad)
         self._socket.write(message)
 
-        '''
-        # # debug
-        # print message
-        with open('message.dump', 'ab') as l:
-             l.write("'")
-             l.write(message)
-             l.write("'")
-             l.write('\n\n---\n\n')
-
-        '''
-
         return self.GetServerResponse()
 
-
-    ## -----------------------------------------------------------
-
     # legacy code
-    def SendSimpleEvent(self, markercode, timestamp = None):
-        """ send a 'simple' marker event -- i.e. an event marker without any additional information;
-
-            nb. the marker code must be a string of exactly four characters
+    def SendSimpleEvent(self, markercode, timestamp=None):
+        """
+        Send a 'simple' marker event -- i.e. an event marker without
+        any additional information;
+        nb. the marker code must be a string of exactly four characters
         """
 
         ## assert len(markercode) == 4, "the length of the event marker code must be *exactly* four characters"
 
-        #
-        # read the time
-        #
-
         if timestamp:
-
             current_time = timestamp
-
         else:
-
             # one day is 1000 * 60 * 60 * 24 milliseconds
             one_day = 1000 * 60 * 60 * 24
             current_time = math.floor(time.time() * 1000) % one_day
 
-
-        default_duration = 1 # also in milliseconds
-
-
+        default_duration = 1  # also in milliseconds
         sizeof_int32 = 4
-
         event_min_size = 3 * sizeof_int32
-        data_string = 'D%s%s%s%s' % (struct.pack('h', event_min_size), # using 'default', or "native", endianness
-                                      struct.pack('l', current_time),
-                                      struct.pack('l', default_duration),
-                                      struct.pack('4s', markercode),
-                                   )
+        data_string = 'D%s%s%s%s' % (
+            struct.pack('h', event_min_size),  # using 'default', or "native", endianness
+            struct.pack('l', current_time),
+            struct.pack('l', default_duration),
+            struct.pack('4s', markercode),
+        )
 
         self._socket.write(data_string)
 
