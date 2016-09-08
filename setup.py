@@ -2,7 +2,7 @@
 
 # standard
 from __future__ import absolute_import
-from distutils.core import setup
+from setuptools import setup
 import os
 
 # local
