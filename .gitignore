@@ -7,6 +7,9 @@
 *.exe
 *.o
 *.so
+build/*
+dist/*
+egi.egg-info*
 
 # Packages #
 ############
